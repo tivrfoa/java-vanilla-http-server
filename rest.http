@@ -1,0 +1,22 @@
+GET http://localhost:8080/name/leandro
+
+###
+GET http://localhost:8080/name/leandro?country=rs
+
+###
+GET http://localhost:8080/country/name/brazil
+
+###
+GET http://localhost:8080/country/name/kingdom
+
+###
+GET http://localhost:8080/country/name-retry/Italy
+
+###
+GET http://localhost:8080/country/name-retry/kkk
+
+###
+GET http://localhost:8080/country/name-half-broken/kkk
+
+###
+GET http://localhost:8080/country/name-half-broken/Spain
