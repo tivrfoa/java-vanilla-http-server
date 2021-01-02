@@ -1,5 +1,8 @@
-import java.lang.reflect.InvocationTargetException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,11 +27,20 @@ import java.util.Map;
  */
 public class ParseJson {
 
+    /*
+    VSCode does not work properly with this string ...
     public static final String FAKE_JSON = """
-                [{"name":"Brazil","topLevelDomain":[".br"],"alpha2Code":"BR","alpha3Code":"BRA","callingCodes":["55"],"capital":"Brasília","altSpellings":["BR","Brasil","Federative Republic of Brazil","República Federativa do Brasil"],"region":"Americas","subregion":"South America","population":206135893,"latlng":[-10.0,-55.0],"demonym":"Brazilian","area":8515767.0,"gini":54.7,"timezones":["UTC-05:00","UTC-04:00","UTC-03:00","UTC-02:00"],"borders":["ARG","BOL","COL","GUF","GUY","PRY","PER","SUR","URY","VEN"],"nativeName":"Brasil","numericCode":"076","currencies":[{"code":"BRL","name":"Brazilian real","symbol":"R$"}],"languages":[{"iso639_1":"pt","iso639_2":"por","name":"Portuguese","nativeName":"Português"}],"translations":{"de":"Brasilien","es":"Brasil","fr":"Brésil","ja":"ブラジル","it":"Brasile","br":"Brasil","pt":"Brasil","nl":"Brazilië","hr":"Brazil","fa":"برزیل"},"flag":"https://restcountries.eu/data/bra.svg","regionalBlocs":[{"acronym":"USAN","name":"Union of South American Nations","otherAcronyms":["UNASUR","UNASUL","UZAN"],"otherNames":["Unión de Naciones Suramericanas","União de Nações Sul-Americanas","Unie van Zuid-Amerikaanse Naties","South American Union"]}],"cioc":"BRA"}]
-            """;
+                 [{"name":"Brazil","topLevelDomain":[".br"],"alpha2Code":"BR","alpha3Code":"BRA","callingCodes":["55"],"capital":"Brasília","altSpellings":["BR","Brasil","Federative Republic of Brazil","República Federativa do Brasil"],"region":"Americas","subregion":"South America","population":206135893,"latlng":[-10.0,-55.0],"demonym":"Brazilian","area":8515767.0,"gini":54.7,"timezones":["UTC-05:00","UTC-04:00","UTC-03:00","UTC-02:00"],"borders":["ARG","BOL","COL","GUF","GUY","PRY","PER","SUR","URY","VEN"],"nativeName":"Brasil","numericCode":"076","currencies":[{"code":"BRL","name":"Brazilian real","symbol":"R$"}],"languages":[{"iso639_1":"pt","iso639_2":"por","name":"Portuguese","nativeName":"Português"}],"translations":{"de":"Brasilien","es":"Brasil","fr":"Brésil","ja":"ブラジル","it":"Brasile","br":"Brasil","pt":"Brasil","nl":"Brazilië","hr":"Brazil","fa":"برزیل"},"flag":"https://restcountries.eu/data/bra.svg","regionalBlocs":[{"acronym":"USAN","name":"Union of South American Nations","otherAcronyms":["UNASUR","UNASUL","UZAN"],"otherNames":["Unión de Naciones Suramericanas","União de Nações Sul-Americanas","Unie van Zuid-Amerikaanse Naties","South American Union"]}],"cioc":"BRA"}]
+             """;
+    */
 
+    public static String FAKE_JSON;
     static {
+        try {
+			FAKE_JSON = new String(Files.readAllBytes(Paths.get("input.json")));
+		} catch (IOException e) {
+			e.printStackTrace();
+        }
         Tests.run();
     }
 
@@ -37,6 +49,14 @@ public class ParseJson {
 
         public Json(Map<String, Object> map) {
             this.map = map;
+        }
+    }
+
+    private static class JsonArray {
+        String str;
+
+        public JsonArray(String str) {
+            this.str = str;
         }
     }
 
@@ -73,6 +93,11 @@ public class ParseJson {
             this.startPosition = startPosition;
             this.endPosition = endPosition;
         }
+
+        @Override
+        public String toString() {
+            return "Key [endPosition=" + endPosition + ", key=" + key + ", startPosition=" + startPosition + "]";
+        }
     }
 
     private static final class Value {
@@ -83,6 +108,11 @@ public class ParseJson {
             this.value = value;
             this.startPosition = startPosition;
             this.endPosition = endPosition;
+        }
+
+        @Override
+        public String toString() {
+            return "Value [endPosition=" + endPosition + ", startPosition=" + startPosition + ", value=" + value + "]";
         }
     }
 
@@ -97,58 +127,55 @@ public class ParseJson {
     }
 
     /**
-     * This a very basic parser. It does not handle many cases. It does not check if
-     * there are values between '[' and '{'
-     * 
-     * @param <T>
-     * @param json
-     * @param clazz
-     * @return
+     * TODO where are other chars that I'm missing?
      */
-    public static <T> List<T> jsonToClass(String json, Class<T> clazz) {
-        List<T> list = new ArrayList<>();
+    private static int nextNonPositionalChar(String str, int fromIndex) {
+        int i = fromIndex;
+        for (; i < str.length(); ++i) {
+            char c = str.charAt(i);
+            if (c == '\n' || c == '\r' || c == ' ' || c == '\t') continue;
+            return i;
+        }
+        return -1;
+    }
+
+    private static Json getJsonObject(String json, int fromIndex) {
+        Map<String, Object> map = new HashMap<>();
+        int mIdx = findMatchingChar(json, '{', '}', fromIndex);
+
+        for (int i = fromIndex; i < mIdx; ++i) {
+            KeyValue keyValue = getKeyValue(json, i);
+            if (keyValue.key == null) { // empty object: {}
+                // TODO do nothing for now 
+            } else {
+                map.put(keyValue.key.key, keyValue.value.value);
+            }
+            i = keyValue.value.endPosition + 1;
+        }
+
+        return new Json(map);
+    }
+
+    private static List<Json> getJsonList(String json) {
+        List<Json> listJson = new ArrayList<>();
 
         json = json.trim();
 
-        // JSON must start with '[' or '{'
         if (json.charAt(0) != '[' && json.charAt(0) != '{')
             throw new RuntimeException("Invalid start of JSON");
 
+        int idx = nextNonPositionalChar(json, 1);
         if (json.charAt(0) == '[') {
             int mIdx = findMatchingChar(json, '[', ']', 1);
 
-            int idx = 1;
             while (true) {
-                while (true) {
-                    char c = json.charAt(idx);
-                    if (c == '\n' || c == '\r' || c == ' ' || c == '\t') { // TODO where else?
-                        ++idx;
-                    } else {
-                        break;
-                    }
-                }
-
                 if (json.charAt(idx) == '"') {
                     // TODO
                 } else if (Character.isDigit(json.charAt(idx))) {
                     // TODO
                 } else {
-                    // int tmp = json.indexOf('{', idx);
-                    boolean tmp = json.charAt(idx) == '{';
-                    if (tmp) {
-                        mIdx = findMatchingChar(json, '{', '}', idx + 1);
-                        Object obj = null;
-                        try {
-                            obj = clazz.getConstructor().newInstance();
-                        } catch (Exception e) { e.printStackTrace(); }
-
-                        KeyValue keyValue = getKeyValue(json, idx + 1);
-                        System.out.println(keyValue);
-                        if (keyValue.key == null) { // empty object
-                            list.add(clazz.cast(obj));
-                        } else {
-
-                        }
+                    if (json.charAt(idx) == '{') {
+                        listJson.add(getJsonObject(json, idx + 1));
                     } else {
                         throw new RuntimeException("Invalid JSON");
                     }
@@ -157,19 +184,33 @@ public class ParseJson {
                 idx = json.indexOf(',', mIdx + 1);
                 if (idx == -1) break; // end of array
             }
+        } else { // it starts with an '{'
+            listJson.add(getJsonObject(json, idx + 1));
         }
 
-        for (int i = 0; i < json.length(); ++i) {
-            // get key
-            // get value
-        }
+        return listJson;
+    }
+
+    /**
+     * This a very bug and very basic parser.
+     * 
+     * It does not handle many valid and invalid cases.
+     * 
+     * @param <T>
+     * @param json
+     * @param clazz
+     * @return
+     */
+    public static <T> List<T> jsonToClass(String json, Class<T> clazz) {
+        List<T> list = new ArrayList<>();
+        List<Json> listJson = getJsonList(json);
 
         Object o = null;
 
-        Json[] jj = { new Json(Map.of("numericCode", 10, "name", "Leandro")) };
+        // Json[] jj = { new Json(Map.of("numericCode", 10, "name", "Leandro")) };
 
         try {
-            for (Json j : jj) {
+            for (Json j : listJson) {
                 var map = j.map;
 
                 o = clazz.getConstructor().newInstance();
@@ -186,6 +227,7 @@ public class ParseJson {
                             // interface java.util.List java.util.List<Country$Currency>
                             System.out.println(field.getName());
                             field.set(o, entry.getValue());
+                            break;
                         }
                 }
 
@@ -206,6 +248,7 @@ public class ParseJson {
         // find key
         for (int i = startPosition; i < json.length(); ++i) {
             char c = json.charAt(i);
+            if (c == '}') break;
             if (Character.isDigit(c) || Character.isLetter(c))
                 throw new RuntimeException("Invalid JSON");
             if (c == '"') {
@@ -222,7 +265,7 @@ public class ParseJson {
             char c = json.charAt(i);
             if (c == ':') continue;
             if (Character.isLetter(c))
-                throw new RuntimeException("Invalid JSON");
+                throw new RuntimeException("Invalid JSON: " + c);
             if (Character.isDigit(c)) {
                 int j = i + 1;
                 for (; j < json.length() && Character.isDigit(json.charAt(j)); ++j);
@@ -231,11 +274,15 @@ public class ParseJson {
             } else if (c == '"') {
                 mIdx = json.indexOf('"', i + 1);
                 if (mIdx == -1) throw new RuntimeException("Invalid JSON");
-                keyValue.value = new Value(json.substring(i, mIdx), i, mIdx - 1);
+                keyValue.value = new Value(json.substring(i + 1, mIdx), i, mIdx - 1);
                 break;
             } else if (c == '{') {
                 mIdx = findMatchingChar(json, '{', '}', i + 1);
                 keyValue.value = new Value(new JsonObject(json.substring(i, mIdx + 1)), i, mIdx);
+                break;
+            } else if (c == '[') {
+                mIdx = findMatchingChar(json, '[', ']', i + 1);
+                keyValue.value = new Value(new JsonArray(json.substring(i, mIdx + 1)), i, mIdx);
                 break;
             }
         }
