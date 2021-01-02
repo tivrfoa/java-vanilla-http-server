@@ -9,7 +9,9 @@ import java.net.Socket;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class Main {
 
@@ -30,23 +32,33 @@ public class Main {
                 BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                 BufferedWriter out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
 
-                String s;
+                String s, path = "/";
+                Map<String, String> queryParams = new HashMap<>();
                 while ((s = in.readLine()) != null) {
+                    if (s.startsWith("GET")) {
+                        String[] tmp = s.split(" ")[1].split("\\?");
+                        path = tmp[0];
+                        if (tmp.length == 1) continue;
+                        String[] params = tmp[1].split("&");
+                        for (String p : params) {
+                            String[] keyValue = p.split("=");
+                            queryParams.put(keyValue[0], keyValue[1]);
+                        }
+                    }
                     System.out.println(s);
                     if (s.isEmpty()) {
                         break;
                     }
                 }
+                System.out.println(path);
+                System.out.println(queryParams);
 
-                String content = """
-                    <!DOCTYPE html>
-                    <html>
-                    <TITLE>Exemple</TITLE>
-                    <body>
-                    <p>Ceci est une page d'exemple.</p>
-                    </body>
-                    </html>
-                """;
+                String content = switch (path) {
+                    case "/" -> handleHomePage(queryParams);
+                    case "/country/name" -> handleCountry(queryParams);
+                    default -> handleBadRequest();
+                };
+
                 write(out, content);
 
                 out.close();
@@ -54,6 +66,34 @@ public class Main {
                 clientSocket.close();
             }
         }
+    }
+
+    private static String handleBadRequest() {
+        return "Invalid Request. URL Not Found";
+    }
+
+    private static String handleCountry(Map<String, String> queryParams) {
+        return """
+                <!DOCTYPE html>
+                <html>
+                <title>Exemple</title>
+                <body>
+                    <div>%s</div>
+                </body>
+                </html>
+            """.formatted(queryParams.toString());
+    }
+
+    private static String handleHomePage(Map<String, String> queryParams) {
+        return """
+                <!DOCTYPE html>
+                <html>
+                <title>Exemple</title>
+                <body>
+                    <div>Home Page</div>
+                </body>
+                </html>
+            """;
     }
 
     private static final DateFormat dateFormat = new SimpleDateFormat("E, d MMM y HH:mm:ss z", Locale.ENGLISH);
