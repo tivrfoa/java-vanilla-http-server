@@ -2,7 +2,8 @@ import java.util.List;
 
 public class Country {
 
-    public int numericCode;
+    public int population;
+    public double gini;
     public String name;
     public String alpha2Code;
     public String capital;
@@ -21,7 +22,7 @@ public class Country {
 
     @Override
     public String toString() {
-        return "Country [alpha2Code=" + alpha2Code + ", capital=" + capital + ", currencies=" + currencies + ", name="
-                + name + ", numericCode=" + numericCode + "]";
+        return "Country [alpha2Code=" + alpha2Code + ", capital=" + capital + ", currencies=" + currencies + ", gini="
+                + gini + ", name=" + name + ", population=" + population + "]";
     }
 }

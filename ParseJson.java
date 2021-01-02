@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.lang.model.util.ElementScanner14;
+
 /**
  * I really don't want to create a json parser ... :( There are a lot of cases
  * to handle. These are valid: [ [ "ola", [] ] ] After '{' there must be a
@@ -268,8 +270,19 @@ public class ParseJson {
                 throw new RuntimeException("Invalid JSON: " + c);
             if (Character.isDigit(c)) {
                 int j = i + 1;
-                for (; j < json.length() && Character.isDigit(json.charAt(j)); ++j);
-                keyValue.value = new Value(Integer.valueOf(json.substring(i, j)), i, j - 1);
+                boolean isDouble = false;
+                for (; j < json.length(); ++j) {
+                    if (Character.isDigit(json.charAt(j))) continue;
+                    if (json.charAt(j) != '.') break;
+                    isDouble = true;
+                }
+
+                if (isDouble)
+                    keyValue.value = new Value(Double.valueOf(json.substring(i, j)), i, j - 1);
+                else
+                    keyValue.value = new Value(Integer.valueOf(json.substring(i, j)), i, j - 1);
+
+                
                 break;
             } else if (c == '"') {
                 mIdx = json.indexOf('"', i + 1);
