@@ -10,7 +10,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpClient.Version;
-import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
@@ -21,10 +20,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-
-import javax.net.ssl.SSLSession;
 
 public class Main {
 
@@ -60,7 +56,7 @@ public class Main {
 
                 String content = switch (url.getBasePath()) {
                     case "/" -> handleHomePage(url.getQueryParams());
-                    case "/country/name" -> handleCountry(url.getQueryParams());
+                    case "/country/name" -> handleCountry(url);
                     default -> handleBadRequest();
                 };
 
@@ -73,25 +69,21 @@ public class Main {
         }
     }
 
-    private static Set<Country> getByName(String name) {
+    private static List<Country> getByName(String name) {
         try {
             String path = "https://restcountries.eu/rest/v2/name/" + name;
-            HttpResponse<String> fetchUrl = fetchUrl(path);
+            HttpResponse<String> response = fetchUrl(path);
+            return ParseJson.jsonToClass(response.body(), Country.class);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-        return Set.of(); // TODO
     }
 
     private static HttpClient client = HttpClient.newBuilder().version(Version.HTTP_1_1)
             .followRedirects(Redirect.NORMAL).connectTimeout(Duration.ofSeconds(20)).build();
 
     private static HttpResponse<String> fetchUrl(String url) throws IOException, InterruptedException {
-        final String fakeResponse = """
-                [{"name":"Brazil","topLevelDomain":[".br"],"alpha2Code":"BR","alpha3Code":"BRA","callingCodes":["55"],"capital":"Brasília","altSpellings":["BR","Brasil","Federative Republic of Brazil","República Federativa do Brasil"],"region":"Americas","subregion":"South America","population":206135893,"latlng":[-10.0,-55.0],"demonym":"Brazilian","area":8515767.0,"gini":54.7,"timezones":["UTC-05:00","UTC-04:00","UTC-03:00","UTC-02:00"],"borders":["ARG","BOL","COL","GUF","GUY","PRY","PER","SUR","URY","VEN"],"nativeName":"Brasil","numericCode":"076","currencies":[{"code":"BRL","name":"Brazilian real","symbol":"R$"}],"languages":[{"iso639_1":"pt","iso639_2":"por","name":"Portuguese","nativeName":"Português"}],"translations":{"de":"Brasilien","es":"Brasil","fr":"Brésil","ja":"ブラジル","it":"Brasile","br":"Brasil","pt":"Brasil","nl":"Brazilië","hr":"Brazil","fa":"برزیل"},"flag":"https://restcountries.eu/data/bra.svg","regionalBlocs":[{"acronym":"USAN","name":"Union of South American Nations","otherAcronyms":["UNASUR","UNASUL","UZAN"],"otherNames":["Unión de Naciones Suramericanas","União de Nações Sul-Americanas","Unie van Zuid-Amerikaanse Naties","South American Union"]}],"cioc":"BRA"}]
-                """;
-        return new HttpResponse<String>() {
+        /*return new HttpResponse<String>() {
 
             @Override
             public int statusCode() {
@@ -118,7 +110,7 @@ public class Main {
 
             @Override
             public String body() {
-                return fakeResponse;
+                return ParseJson.FAKE_JSON;
             }
 
             @Override
@@ -139,32 +131,33 @@ public class Main {
                 return null;
             }
 
-        };
-        /*HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
+        };*/
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
         HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
         System.out.println(response.statusCode());
         System.out.println(response.body());
 
-        return response;*/
+        return response;
     }
 
     private static String handleBadRequest() {
         return "Invalid Request. URL Not Found";
     }
 
-    private static String handleCountry(Map<String, String> queryParams) {
-        getByName("Brazil");
-        List<Country> country = ParseJson.jsonToClass(ParseJson.FAKE_JSON, Country.class);
-        System.out.println(country);
+    private static String handleCountry(Url url) {
+        String path = url.getFullPath();
+        String countryName = path.substring(path.lastIndexOf('/') + 1);
+        List<Country> countries = getByName(countryName);
         return """
                 <!DOCTYPE html>
                 <html>
                 <title>Exemple</title>
+                <meta charset="ISO-8859-1">
                 <body>
                     <div>%s</div>
                 </body>
                 </html>
-            """.formatted(queryParams.toString());
+            """.formatted(countries);
     }
 
     private static String handleHomePage(Map<String, String> queryParams) {

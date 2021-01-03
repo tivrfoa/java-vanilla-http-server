@@ -3,7 +3,7 @@ import java.util.List;
 public class Country {
 
     public int population;
-    public double gini;
+    public Double gini;
     public String name;
     public String alpha2Code;
     public String capital;

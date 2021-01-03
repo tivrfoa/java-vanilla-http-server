@@ -277,9 +277,13 @@ public class ParseJson {
         for (int i = mIdx + 1; i < json.length(); ++i) {
             char c = json.charAt(i);
             if (c == ':') continue;
-            if (Character.isLetter(c))
+            if (Character.isLetter(c)) {
+                if (json.substring(i, i+4).equals("null")) {
+                    keyValue.value = new Value(null, i, i + 3);
+                    break;
+                }
                 throw new RuntimeException("Invalid JSON: " + c);
-            if (Character.isDigit(c)) {
+            } else if (Character.isDigit(c)) {
                 int j = i + 1;
                 boolean isDouble = false;
                 for (; j < json.length(); ++j) {
