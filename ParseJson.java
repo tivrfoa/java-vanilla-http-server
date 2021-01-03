@@ -183,6 +183,7 @@ public class ParseJson {
                     // TODO
                 } else {
                     if (json.charAt(idx) == '{') {
+                        mIdx = findMatchingChar(json, '{', '}', idx + 1);
                         listJson.add(getJsonObject(json, idx + 1));
                     } else {
                         throw new RuntimeException("Invalid JSON");
@@ -191,6 +192,7 @@ public class ParseJson {
                 
                 idx = json.indexOf(',', mIdx + 1);
                 if (idx == -1) break; // end of array
+                ++idx;
             }
         } else { // it starts with an '{'
             listJson.add(getJsonObject(json, idx));
