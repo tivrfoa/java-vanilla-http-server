@@ -1,4 +1,6 @@
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -6,26 +8,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.lang.model.util.ElementScanner14;
-
 /**
- * I really don't want to create a json parser ... :( There are a lot of cases
- * to handle. These are valid: [ [ "ola", [] ] ] After '{' there must be a
- * string (key), and after the key there must be a colon ':'
+ * I really didn't want to create a json parser ... :(
+ * 
+ * There are a lot of cases to handle.
  * 
  * Parses a String to a class
- * 
  * Case matters ...
- * 
- * [{"name":"Brazil","topLevelDomain":[".br"],"alpha2Code":"BR","alpha3Code":"BRA","callingCodes":["55"],"capital":"Brasília","altSpellings":["BR","Brasil","Federative
- * Republic of Brazil","República Federativa do
- * Brasil"],"region":"Americas","subregion":"South
- * America","population":206135893,"latlng":[-10.0,-55.0],"demonym":"Brazilian","area":8515767.0,"gini":54.7,"timezones":["UTC-05:00","UTC-04:00","UTC-03:00","UTC-02:00"],"borders":["ARG","BOL","COL","GUF","GUY","PRY","PER","SUR","URY","VEN"],"nativeName":"Brasil","numericCode":"076","currencies":[{"code":"BRL","name":"Brazilian
- * real","symbol":"R$"}],"languages":[{"iso639_1":"pt","iso639_2":"por","name":"Portuguese","nativeName":"Português"}],"translations":{"de":"Brasilien","es":"Brasil","fr":"Brésil","ja":"ブラジル","it":"Brasile","br":"Brasil","pt":"Brasil","nl":"Brazilië","hr":"Brazil","fa":"برزیل"},"flag":"https://restcountries.eu/data/bra.svg","regionalBlocs":[{"acronym":"USAN","name":"Union
- * of South American
- * Nations","otherAcronyms":["UNASUR","UNASUL","UZAN"],"otherNames":["Unión de
- * Naciones Suramericanas","União de Nações Sul-Americanas","Unie van
- * Zuid-Amerikaanse Naties","South American Union"]}],"cioc":"BRA"}]
  */
 public class ParseJson {
 
@@ -60,6 +49,18 @@ public class ParseJson {
         public JsonArray(String str) {
             this.str = str;
         }
+
+        public List<ParseJson.JsonObject> toJsonObjectList() {
+            List<JsonObject> list = new ArrayList<>();
+            for (int i = 1; i < str.length() - 1; ++i) {
+                if (str.charAt(i) == '{') {
+                    int mIdx = findMatchingChar(str, '{', '}', i + 1);
+                    list.add(new JsonObject(str.substring(i, mIdx + 1)));
+                    i = mIdx + 1;
+                }
+            }
+            return list;
+        }
     }
 
     private static class JsonObject {
@@ -67,6 +68,11 @@ public class ParseJson {
 
         public JsonObject(String str) {
             this.str = str;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonObject [str=" + str + "]";
         }
     }
 
@@ -187,7 +193,7 @@ public class ParseJson {
                 if (idx == -1) break; // end of array
             }
         } else { // it starts with an '{'
-            listJson.add(getJsonObject(json, idx + 1));
+            listJson.add(getJsonObject(json, idx));
         }
 
         return listJson;
@@ -206,29 +212,37 @@ public class ParseJson {
     public static <T> List<T> jsonToClass(String json, Class<T> clazz) {
         List<T> list = new ArrayList<>();
         List<Json> listJson = getJsonList(json);
-
         Object o = null;
-
-        // Json[] jj = { new Json(Map.of("numericCode", 10, "name", "Leandro")) };
 
         try {
             for (Json j : listJson) {
                 var map = j.map;
-
                 o = clazz.getConstructor().newInstance();
 
                 for (var entry : map.entrySet()) {
 
                     for (var field : clazz.getFields())
                         if (entry.getKey().equals(field.getName())) {
-                            // System.out.println(field.getType() + " " + field.getGenericType());
-                            // int int
-                            // class java.lang.String class java.lang.String
-                            // class java.lang.String class java.lang.String
-                            // class java.lang.String class java.lang.String
-                            // interface java.util.List java.util.List<Country$Currency>
                             System.out.println(field.getName());
-                            field.set(o, entry.getValue());
+                            if (entry.getValue() instanceof JsonArray jsonArray) {
+                                // TODO
+                                System.out.println("TODO handle array");
+                                System.out.println(field.getType().isAssignableFrom(List.class));
+                                List<JsonObject> jsonObjects = jsonArray.toJsonObjectList();
+                                System.out.println(jsonObjects);
+                                List childList = new ArrayList<>();
+                                for (var jsonOjbect : jsonObjects) {
+                                    System.out.println(field.getType());
+                                    System.out.println(field.getGenericType());
+                                    System.out.println(field.getGenericType().getClass());
+                                    List<?> jsonToClass = jsonToClass(jsonOjbect.str, getActualTypeArgument(field));
+                                    Object child = jsonToClass.get(0);
+                                    childList.add(child);
+                                }
+                                field.set(o, childList);
+                            } else {
+                                field.set(o, entry.getValue());
+                            }
                             break;
                         }
                 }
@@ -241,6 +255,12 @@ public class ParseJson {
         }
 
         return list;
+    }
+
+    private static Class<?> getActualTypeArgument(Field field) {
+        ParameterizedType stringListType = (ParameterizedType) field.getGenericType();
+        Class<?> clazz = (Class<?>) stringListType.getActualTypeArguments()[0];
+        return clazz; 
     }
 
     private static ParseJson.KeyValue getKeyValue(String json, int startPosition) {
