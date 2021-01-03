@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * I really didn't want to create a json parser ... :(
- * 
- * There are a lot of cases to handle.
+ * I really didn't want to create a json parser ...
+ * But it's an interesting programming challenge, so I tried to
+ * create an extremely basic one.
  * 
  * Parses a String to a class
  * Case matters ...
@@ -200,7 +200,7 @@ public class ParseJson {
     }
 
     /**
-     * This a very bug and very basic parser.
+     * This is a very bug and very basic parser.
      * 
      * It does not handle many valid and invalid cases.
      * 
@@ -220,22 +220,15 @@ public class ParseJson {
                 o = clazz.getConstructor().newInstance();
 
                 for (var entry : map.entrySet()) {
-
                     for (var field : clazz.getFields())
                         if (entry.getKey().equals(field.getName())) {
                             System.out.println(field.getName());
                             if (entry.getValue() instanceof JsonArray jsonArray) {
-                                // TODO
-                                System.out.println("TODO handle array");
-                                System.out.println(field.getType().isAssignableFrom(List.class));
                                 List<JsonObject> jsonObjects = jsonArray.toJsonObjectList();
-                                System.out.println(jsonObjects);
                                 List childList = new ArrayList<>();
                                 for (var jsonOjbect : jsonObjects) {
-                                    System.out.println(field.getType());
-                                    System.out.println(field.getGenericType());
-                                    System.out.println(field.getGenericType().getClass());
-                                    List<?> jsonToClass = jsonToClass(jsonOjbect.str, getActualTypeArgument(field));
+                                    List<?> jsonToClass = jsonToClass(jsonOjbect.str,
+                                            getActualTypeArgument(field));
                                     Object child = jsonToClass.get(0);
                                     childList.add(child);
                                 }
@@ -246,10 +239,8 @@ public class ParseJson {
                             break;
                         }
                 }
-
                 list.add(clazz.cast(o));
             }
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
