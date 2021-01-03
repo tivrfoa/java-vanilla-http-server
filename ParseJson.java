@@ -15,6 +15,9 @@ import java.util.Map;
  * 
  * Parses a String to a class
  * Case matters ...
+ * 
+ * JSON validator:
+ * https://jsonformatter.curiousconcept.com
  */
 public class ParseJson {
 
@@ -224,7 +227,6 @@ public class ParseJson {
                 for (var entry : map.entrySet()) {
                     for (var field : clazz.getFields())
                         if (entry.getKey().equals(field.getName())) {
-                            System.out.println(field.getName());
                             if (entry.getValue() instanceof JsonArray jsonArray) {
                                 List<JsonObject> jsonObjects = jsonArray.toJsonObjectList();
                                 List childList = new ArrayList<>();

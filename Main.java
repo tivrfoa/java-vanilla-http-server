@@ -58,12 +58,17 @@ public class Main {
                 }
                 System.out.println(url);
 
-                Response response = switch (url.getBasePath()) {
-                    case "/" -> handleHomePage(url, responseType);
-                    case "/country/name" -> handleCountry(url, responseType, false);
-                    case "/country/name-async" -> handleCountry(url, responseType, true);
-                    default -> handleBadRequest();
-                };
+                Response response;
+                if (url == null) {
+                    response = handleBadRequest();
+                } else {
+                    response = switch (url.getBasePath()) {
+                        case "/" -> handleHomePage(url, responseType);
+                        case "/country/name" -> handleCountry(url, responseType, false);
+                        case "/country/name-async" -> handleCountry(url, responseType, true);
+                        default -> handleBadRequest();
+                    };
+                }
 
                 response.type = responseType;
 
