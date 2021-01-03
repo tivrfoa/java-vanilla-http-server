@@ -7,6 +7,10 @@ GET http://localhost:8080/name/leandro?country=rs
 GET http://localhost:8080/country/name/brazil
 
 ###
+GET http://localhost:8080/country/name/brazil
+Accept: application/json
+
+###
 GET http://localhost:8080/country/name/kingdom
 
 ###

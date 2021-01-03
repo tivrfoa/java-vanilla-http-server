@@ -16,13 +16,16 @@ public class Country {
 
         @Override
         public String toString() {
-            return "Currency [code=" + code + ", name=" + name + ", symbol=" + symbol + "]";
+            return "{\"Currency\": {\"code\": \"" + code +
+                    "\", \"name\": \"" + name + "\", \"symbol\": \"" + symbol + "\"}}";
         }
     }
 
     @Override
     public String toString() {
-        return "Country [alpha2Code=" + alpha2Code + ", capital=" + capital + ", currencies=" + currencies + ", gini="
-                + gini + ", name=" + name + ", population=" + population + "]";
+        return "{\"Country\": {\"alpha2Code\": \"" + alpha2Code +
+                "\", \"capital\": \"" + capital +
+                "\", \"currencies\": " + currencies + ", \"gini\":"
+                + gini + ", \"name\": \"" + name + "\", \"population\":" + population + "}}";
     }
 }

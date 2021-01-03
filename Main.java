@@ -20,10 +20,11 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class Main {
 
-    private static final String OK_HEADER = "HTTP/1.1 200 OK\r\n";
+    private static final String LINE_BREAK = "\r\n";
 
     public static void main(String[] args) throws IOException {
         // https://stackoverflow.com/a/10788242/339561
@@ -42,24 +43,31 @@ public class Main {
 
                 String s;
                 Url url = null;
+                ResponseType responseType = ResponseType.HTML;
                 while ((s = in.readLine()) != null) {
+                    System.out.println(s);
                     if (s.startsWith("GET")) {
                         url = new Url(s);
                     }
-                    System.out.println(s);
+                    if (s.toLowerCase().startsWith("accept: ")) {
+                        responseType = ResponseType.getFromAccept(s); 
+                    }
                     if (s.isEmpty()) {
                         break;
                     }
                 }
                 System.out.println(url);
 
-                String content = switch (url.getBasePath()) {
-                    case "/" -> handleHomePage(url.getQueryParams());
-                    case "/country/name" -> handleCountry(url);
+                Response response = switch (url.getBasePath()) {
+                    case "/" -> handleHomePage(url, responseType);
+                    case "/country/name" -> handleCountry(url, responseType, false);
+                    case "/country/name-async" -> handleCountry(url, responseType, true);
                     default -> handleBadRequest();
                 };
 
-                write(out, content);
+                response.type = responseType;
+
+                write(out, response);
 
                 out.close();
                 in.close();
@@ -68,10 +76,22 @@ public class Main {
         }
     }
 
-    private static List<Country> getByName(String name) {
+    private static class Response {
+        String body;
+        ResponseStatusCode statusCode;
+        ResponseType type;
+
+        public Response(String body, Main.ResponseStatusCode statusCode, ResponseType type) {
+            this.body = body;
+            this.statusCode = statusCode;
+            this.type = type;
+        }
+    }
+
+    private static List<Country> getByName(String name, boolean async) {
         try {
             String path = "https://restcountries.eu/rest/v2/name/" + name;
-            HttpResponse<String> response = fetchUrl(path);
+            HttpResponse<String> response = fetchUrl(path, async);
             return ParseJson.jsonToClass(response.body(), Country.class);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -81,112 +101,106 @@ public class Main {
     private static HttpClient client = HttpClient.newBuilder().version(Version.HTTP_1_1)
             .followRedirects(Redirect.NORMAL).connectTimeout(Duration.ofSeconds(20)).build();
 
-    private static HttpResponse<String> fetchUrl(String url) throws IOException, InterruptedException {
-        /*return new HttpResponse<String>() {
-
-            @Override
-            public int statusCode() {
-                return 200;
-            }
-
-            @Override
-            public HttpRequest request() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            @Override
-            public Optional<HttpResponse<String>> previousResponse() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            @Override
-            public HttpHeaders headers() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            @Override
-            public String body() {
-                return ParseJson.FAKE_JSON;
-            }
-
-            @Override
-            public Optional<SSLSession> sslSession() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            @Override
-            public URI uri() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-            @Override
-            public Version version() {
-                // TODO Auto-generated method stub
-                return null;
-            }
-
-        };*/
+    private static HttpResponse<String> fetchUrl(String url, boolean async)
+            throws ExecutionException, IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).build();
-        HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+        // TODO probably do async call and immediately call get
+        // makes the async call useless
+        HttpResponse<String> response = async ? client.sendAsync(request, BodyHandlers.ofString()).get()
+                : client.send(request, BodyHandlers.ofString());
         System.out.println(response.statusCode());
         System.out.println(response.body());
 
         return response;
     }
 
-    private static String handleBadRequest() {
-        return "Invalid Request. URL Not Found";
+    private static Response handleBadRequest() {
+        String body = "Invalid Request. URL Not Found";
+        return new Response(body, ResponseStatusCode.BAD_REQUEST, ResponseType.HTML);
     }
 
-    private static String handleCountry(Url url) {
+    private static Response handleCountry(Url url, ResponseType responseType, boolean async) {
         String path = url.getFullPath();
         String countryName = path.substring(path.lastIndexOf('/') + 1);
-        List<Country> countries = getByName(countryName);
-        return """
-                <!DOCTYPE html>
-                <html>
-                <title>Exemple</title>
-                <meta charset="ISO-8859-1">
-                <body>
-                    <div>%s</div>
-                </body>
-                </html>
-            """.formatted(countries);
+        List<Country> countries = getByName(countryName, async);
+        String body = switch (responseType) {
+            case JSON -> countries.toString();
+            default -> """
+                    <!DOCTYPE html>
+                    <html>
+                    <title>Exemple</title>
+                    <meta charset="ISO-8859-1">
+                    <body>
+                        <div>%s</div>
+                    </body>
+                    </html>
+                """.formatted(countries);
+        };
+        return new Response(body, ResponseStatusCode.OK, ResponseType.HTML);
     }
 
-    private static String handleHomePage(Map<String, String> queryParams) {
-        return """
-                <!DOCTYPE html>
-                <html>
-                <title>Exemple</title>
-                <body>
-                    <div>Home Page</div>
-                </body>
-                </html>
-            """;
+    private static Response handleHomePage(Url url, ResponseType responseType) {
+        String body = """
+                    <!DOCTYPE html>
+                    <html>
+                    <title>Exemple</title>
+                    <body>
+                        <div>Home Page</div>
+                    </body>
+                    </html>
+                """;
+        return new Response(body, ResponseStatusCode.OK, ResponseType.HTML);
     }
 
     private static final DateFormat dateFormat = new SimpleDateFormat("E, d MMM y HH:mm:ss z", Locale.ENGLISH);
 
-    private static void write(BufferedWriter out, String content) throws IOException {
+    private static void write(BufferedWriter out, Response response) throws IOException {
         var now = Calendar.getInstance();
         var lastModified = Calendar.getInstance();
         lastModified.add(Calendar.DAY_OF_MONTH, -3);
         var expires = Calendar.getInstance();
         expires.add(Calendar.MONTH, 3);
-        out.write(OK_HEADER);
-        out.write("Date: " + dateFormat.format(now.getTime()) + "\r\n");
+        out.write(response.statusCode + LINE_BREAK);
+        out.write("Date: " + dateFormat.format(now.getTime()) + LINE_BREAK);
         out.write("Server: Vanilla Java/0.0.1\r\n");
-        out.write("Content-Type: text/html\r\n");
-        out.write("Content-Length: " + content.length() + "\r\n");
-        out.write("Expires: " + dateFormat.format(expires.getTime()) + "\r\n");
-        out.write("Last-modified: " + dateFormat.format(lastModified.getTime()) + "\r\n");
-        out.write("\r\n");
-        out.write(content);
+        out.write(response.type + LINE_BREAK);
+        out.write("Content-Length: " + (response.body.length() + 1) + LINE_BREAK);
+        out.write("Expires: " + dateFormat.format(expires.getTime()) + LINE_BREAK);
+        out.write("Last-modified: " + dateFormat.format(lastModified.getTime()) + LINE_BREAK);
+        out.write(LINE_BREAK);
+        out.write(response.body);
+    }
+
+    enum ResponseStatusCode {
+        OK, BAD_REQUEST,;
+
+        @Override
+        public String toString() {
+            return switch (this) {
+                case OK -> "HTTP/1.1 200 OK";
+                case BAD_REQUEST -> "HTTP/1.1 400 BAD REQUEST";
+                default -> "???";
+            };
+        }
+    }
+
+    enum ResponseType {
+        HTML, JSON;
+
+        @Override
+        public String toString() {
+            return switch (this) {
+                case HTML -> "Content-Type: text/html";
+                case JSON -> "Content-Type: application/json";
+                default -> "???";
+            };
+        }
+
+        public static Main.ResponseType getFromAccept(String s) {
+            return switch (s.split(" ")[1]) {
+                case "application/json" -> JSON;
+                default -> HTML;
+            };
+        }
     }
 }
